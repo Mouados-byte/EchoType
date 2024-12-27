@@ -3,105 +3,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Transcription</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <title>Audio Transcription Service</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8 text-center">Audio Transcription Service</h1>
+        <h1 class="text-3xl font-bold mb-8">Audio Transcription Service</h1>
         
-        <div class="max-w-xl mx-auto bg-white rounded-lg shadow-md p-6">
-            <div class="mb-6">
-                <div class="flex items-center justify-center w-full">
-                    <label class="flex flex-col items-center px-4 py-6 bg-white text-blue-500 rounded-lg shadow-lg tracking-wide border border-blue-500 cursor-pointer hover:bg-blue-500 hover:text-white">
-                        <svg class="w-8 h-8" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                            <path d="M16.88 9.1A4 4 0 0 1 16 17H5a5 5 0 0 1-1-9.9V7a3 3 0 0 1 4.52-2.59A4.98 4.98 0 0 1 17 8c0 .38-.04.74-.12 1.1zM11 11h3l-4-4-4 4h3v3h2v-3z" />
-                        </svg>
-                        <span class="mt-2 text-base">Select audio file</span>
-                        <input type='file' class="hidden" id="audioInput" accept="audio/*" />
-                    </label>
+        <!-- Upload Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <input type="file" id="audioFile" accept="audio/*" class="mb-4">
+            <div id="uploadProgress" class="hidden">
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
                 </div>
-                <div id="fileName" class="mt-2 text-center text-sm text-gray-600"></div>
+                <p id="progressText" class="text-sm text-gray-600 mt-2">0%</p>
             </div>
+        </div>
 
-            <div class="flex justify-center">
-                <button id="transcribeBtn" class="bg-blue-500 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-600 disabled:bg-gray-400" disabled>
-                    Transcribe
-                </button>
+        <!-- Status Messages -->
+        <div id="status" class="hidden bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6"></div>
+        
+        <!-- Error Messages -->
+        <div id="error" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6"></div>
+
+        <!-- Results Section -->
+        <div id="results" class="hidden bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Transcription Results</h2>
+            <div class="mb-4">
+                <h3 class="font-semibold">Detected Language:</h3>
+                <p id="language" class="text-gray-700"></p>
             </div>
-
-            <div id="loadingIndicator" class="hidden mt-4">
-                <div class="flex justify-center">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                </div>
-                <p class="text-center mt-2 text-gray-600">Transcribing audio...</p>
+            <div class="mb-4">
+                <h3 class="font-semibold">Full Text:</h3>
+                <p id="fullText" class="text-gray-700 whitespace-pre-wrap"></p>
             </div>
-
-            <div id="resultContainer" class="mt-6 hidden">
-                <h2 class="text-xl font-semibold mb-2">Transcription Result:</h2>
-                <div id="transcriptionText" class="p-4 bg-gray-50 rounded-lg"></div>
-                <div class="mt-4">
-                    <p id="languageInfo" class="text-sm text-gray-600"></p>
-                </div>
+            <div>
+                <h3 class="font-semibold mb-2">Segments:</h3>
+                <div id="segments" class="space-y-2"></div>
             </div>
         </div>
     </div>
 
     <script>
-        const audioInput = document.getElementById('audioInput');
-        const fileName = document.getElementById('fileName');
-        const transcribeBtn = document.getElementById('transcribeBtn');
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const resultContainer = document.getElementById('resultContainer');
-        const transcriptionText = document.getElementById('transcriptionText');
-        const languageInfo = document.getElementById('languageInfo');
+        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+        let ws = null;
 
-        audioInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                fileName.textContent = file.name;
-                transcribeBtn.disabled = false;
-            } else {
-                fileName.textContent = '';
-                transcribeBtn.disabled = true;
-            }
-        });
-
-        transcribeBtn.addEventListener('click', async () => {
-            const file = audioInput.files[0];
-            if (!file) return;
-
-            // Show loading state
-            loadingIndicator.classList.remove('hidden');
-            resultContainer.classList.add('hidden');
-            transcribeBtn.disabled = true;
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const response = await fetch('/transcribe', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    transcriptionText.textContent = result.text;
-                    languageInfo.textContent = `Detected language: ${result.language}`;
-                    resultContainer.classList.remove('hidden');
-                } else {
-                    alert('Error: ' + result.detail);
+        function connectWebSocket() {
+            // Use wss:// for HTTPS and ws:// for HTTP
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            
+            ws.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                
+                switch(message.type) {
+                    case 'upload_progress':
+                        updateProgress(message.progress);
+                        break;
+                    case 'status':
+                        showStatus(message.message);
+                        break;
+                    case 'error':
+                        showError(message.message);
+                        break;
+                    case 'transcription_complete':
+                        showResults(message.result);
+                        break;
                 }
-            } catch (error) {
-                alert('Error occurred during transcription');
-                console.error(error);
-            } finally {
-                loadingIndicator.classList.add('hidden');
-                transcribeBtn.disabled = false;
+            };
+
+            ws.onclose = function() {
+                setTimeout(connectWebSocket, 1000); // Reconnect after 1 second
+            };
+        }
+
+        function updateProgress(progress) {
+            document.getElementById('uploadProgress').classList.remove('hidden');
+            document.getElementById('progressBar').style.width = `${progress}%`;
+            document.getElementById('progressText').textContent = `${Math.round(progress)}%`;
+        }
+
+        function showStatus(message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.classList.remove('hidden');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+
+        function showResults(result) {
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('language').textContent = result.language;
+            document.getElementById('fullText').textContent = result.text;
+            
+            const segmentsDiv = document.getElementById('segments');
+            segmentsDiv.innerHTML = '';
+            
+            result.segments.forEach(segment => {
+                const segmentDiv = document.createElement('div');
+                segmentDiv.className = 'bg-gray-50 p-3 rounded';
+                segmentDiv.innerHTML = `
+                    <div class="text-sm text-gray-500">[${segment.start}s -> ${segment.end}s]</div>
+                    <div class="mt-1">${segment.text}</div>
+                `;
+                segmentsDiv.appendChild(segmentDiv);
+            });
+        }
+
+        async function uploadFile(file) {
+            // Verify file type
+            if (!file.type.startsWith('audio/')) {
+                showError('Please select an audio file');
+                return;
             }
-        });
+
+            const reader = new FileReader();
+            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            let currentChunk = 0;
+
+            const readChunk = () => {
+                const start = currentChunk * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, file.size);
+                const chunk = file.slice(start, end);
+                reader.readAsDataURL(chunk);
+            };
+
+            reader.onload = async function(e) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'upload_chunk',
+                        data: e.target.result,
+                        chunk_number: currentChunk + 1,
+                        total_chunks: totalChunks
+                    }));
+
+                    currentChunk++;
+                    if (currentChunk < totalChunks) {
+                        // Wait a bit before sending next chunk
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        readChunk();
+                    }
+                }
+            };
+
+            reader.onerror = function(e) {
+                showError('Error reading file');
+            };
+
+            // Start reading the first chunk
+            readChunk();
+        }
+
+        window.onload = function() {
+            connectWebSocket();
+
+            document.getElementById('audioFile').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    // Reset UI
+                    document.getElementById('error').classList.add('hidden');
+                    document.getElementById('results').classList.add('hidden');
+                    document.getElementById('status').classList.add('hidden');
+                    updateProgress(0);
+                    
+                    // Start upload
+                    uploadFile(file);
+                }
+            });
+        };
     </script>
 </body>
 </html>
