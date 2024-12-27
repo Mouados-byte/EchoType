@@ -20,9 +20,14 @@ templates = Jinja2Templates(directory="templates")
 
 # Initialize transcription service
 transcription_service = WhisperTranscriptionService(
-    model_size="base",
+    model_size="small",  # Better balance for real-time use
     device="cpu",
-    compute_type="int8"
+    compute_type="int8",  # Memory efficient
+    beam_size=5,
+    vad_parameters={
+        "min_silence_duration_ms": 700,
+        "speech_pad_ms": 400
+    }
 )
 
 class ConnectionManager:

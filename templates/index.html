@@ -10,8 +10,32 @@
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold mb-8">Audio Transcription Service</h1>
         
+        <!-- Recording Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex gap-4 mb-4">
+                <button id="startRecord" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                    Start Recording
+                </button>
+                <button id="stopRecord" class="bg-red-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded hidden">
+                    Stop Recording
+                </button>
+            </div>
+            <div id="recordingStatus" class="text-sm text-gray-600 hidden">
+                Recording... <span id="recordingTime">0:00</span>
+            </div>
+            
+            <!-- Audio playback -->
+            <div id="audioPlayback" class="mt-4 hidden">
+                <audio id="recordedAudio" controls class="w-full"></audio>
+                <button id="sendRecording" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                    Send for Transcription
+                </button>
+            </div>
+        </div>
+
         <!-- Upload Section -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <p class="mb-2 text-gray-700">Or upload an audio file:</p>
             <input type="file" id="audioFile" accept="audio/*" class="mb-4">
             <div id="uploadProgress" class="hidden">
                 <div class="w-full bg-gray-200 rounded-full h-2.5">
@@ -46,11 +70,14 @@
     </div>
 
     <script>
-        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordingTimer;
+        let recordingStartTime;
         let ws = null;
+        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
 
         function connectWebSocket() {
-            // Use wss:// for HTTPS and ws:// for HTTP
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
             
@@ -74,7 +101,7 @@
             };
 
             ws.onclose = function() {
-                setTimeout(connectWebSocket, 1000); // Reconnect after 1 second
+                setTimeout(connectWebSocket, 1000);
             };
         }
 
@@ -94,6 +121,11 @@
             const errorDiv = document.getElementById('error');
             errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
+            hideStatus();
+        }
+
+        function hideStatus() {
+            document.getElementById('status').classList.add('hidden');
         }
 
         function showResults(result) {
@@ -115,12 +147,72 @@
             });
         }
 
-        async function uploadFile(file) {
-            // Verify file type
-            if (!file.type.startsWith('audio/')) {
-                showError('Please select an audio file');
-                return;
+        function updateRecordingTime() {
+            const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const minutes = Math.floor(duration / 60);
+            const seconds = duration % 60;
+            document.getElementById('recordingTime').textContent = 
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    document.getElementById('recordedAudio').src = audioUrl;
+                    document.getElementById('audioPlayback').classList.remove('hidden');
+                };
+
+                mediaRecorder.start();
+                recordingStartTime = Date.now();
+                recordingTimer = setInterval(updateRecordingTime, 1000);
+
+                document.getElementById('startRecord').classList.add('hidden');
+                document.getElementById('stopRecord').classList.remove('hidden');
+                document.getElementById('recordingStatus').classList.remove('hidden');
+                document.getElementById('audioPlayback').classList.add('hidden');
+                document.getElementById('results').classList.add('hidden');
+                hideStatus();
+
+            } catch (err) {
+                showError('Error accessing microphone: ' + err.message);
             }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                clearInterval(recordingTimer);
+                
+                document.getElementById('startRecord').classList.remove('hidden');
+                document.getElementById('stopRecord').classList.add('hidden');
+                document.getElementById('recordingStatus').classList.add('hidden');
+            }
+        }
+
+        async function sendRecordedAudio() {
+            if (audioChunks.length === 0) return;
+
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            await uploadFile(audioBlob);
+        }
+
+        async function uploadFile(file) {
+            // Reset UI
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('status').classList.add('hidden');
+            updateProgress(0);
 
             const reader = new FileReader();
             const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
@@ -144,7 +236,6 @@
 
                     currentChunk++;
                     if (currentChunk < totalChunks) {
-                        // Wait a bit before sending next chunk
                         await new Promise(resolve => setTimeout(resolve, 100));
                         readChunk();
                     }
@@ -155,23 +246,19 @@
                 showError('Error reading file');
             };
 
-            // Start reading the first chunk
             readChunk();
         }
 
         window.onload = function() {
             connectWebSocket();
 
+            document.getElementById('startRecord').addEventListener('click', startRecording);
+            document.getElementById('stopRecord').addEventListener('click', stopRecording);
+            document.getElementById('sendRecording').addEventListener('click', sendRecordedAudio);
+
             document.getElementById('audioFile').addEventListener('change', function(e) {
                 const file = e.target.files[0];
                 if (file) {
-                    // Reset UI
-                    document.getElementById('error').classList.add('hidden');
-                    document.getElementById('results').classList.add('hidden');
-                    document.getElementById('status').classList.add('hidden');
-                    updateProgress(0);
-                    
-                    // Start upload
                     uploadFile(file);
                 }
             });
