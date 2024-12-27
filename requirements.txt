@@ -11,3 +11,5 @@ torch
 sentencepiece
 sacremoses
 asyncio
+scipy
+soundfile

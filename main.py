@@ -26,7 +26,7 @@ whisper_service = WhisperTranscriptionService(
 )
 
 # Initialize connection manager
-manager = ConnectionManager(max_workers=3)  # Adjust workers based on your CPU
+manager = ConnectionManager()  # Adjust workers based on your CPU
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -102,6 +102,8 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
     finally:
         manager.cleanup()
+        import gc
+        gc.collect()
 
 if __name__ == "__main__":
     import uvicorn

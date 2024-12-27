@@ -1,12 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Speech Translation</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="bg-gray-100">
+    <!-- Loading Spinner -->
+    <div id="loader"
+        class="hidden fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold mb-8">Live Speech Translation</h1>
 
@@ -16,7 +24,8 @@
                 <button id="startButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
                     Start Recording
                 </button>
-                <button id="stopButton" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded hidden">
+                <button id="stopButton"
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded hidden">
                     Stop
                 </button>
             </div>
@@ -41,7 +50,15 @@
         <div class="grid grid-cols-full gap-6">
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-xl font-semibold mb-2">Original Speech</h2>
-                <div id="originalText" class="min-h-[200px] whitespace-pre-wrap text-gray-700">
+                <div class="relative">
+                    <div id="originalText" class="min-h-[200px] whitespace-pre-wrap text-gray-700"></div>
+                    <div id="textLoader" class="hidden">
+                        <span class="inline-flex ml-2">
+                            <span class="animate-bounce mx-0.5">.</span>
+                            <span class="animate-bounce mx-0.5 delay-100">.</span>
+                            <span class="animate-bounce mx-0.5 delay-200">.</span>
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -62,18 +79,26 @@
 
         const SAMPLE_RATE = 16000;
         const BUFFER_SIZE = 2048;
-        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks for file upload
-        const CHUNK_TIME_INTERVAL = 1000 // 1 second for each chunk
+        const CHUNK_SIZE = 1024 * 1024;
+        const CHUNK_TIME_INTERVAL = 1000;
+
+        function showLoader() {
+            document.getElementById('loader').classList.remove('hidden');
+        }
+
+        function hideLoader() {
+            document.getElementById('loader').classList.add('hidden');
+        }
 
         function showError(message) {
             const errorDiv = document.getElementById('error');
             errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
+            hideLoader();
         }
 
         function updateTimer() {
             if (!recordingStartTime) return;
-
             const now = Date.now();
             const diff = Math.floor((now - recordingStartTime) / CHUNK_TIME_INTERVAL);
             const minutes = Math.floor(diff / 60);
@@ -92,11 +117,14 @@
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
-            ws.onmessage = function(event) {
+            ws.onmessage = function (event) {
                 const message = JSON.parse(event.data);
-                switch(message.type) {
+                switch (message.type) {
                     case 'transcription':
+                        hideLoader();
+                        document.getElementById('textLoader').classList.add('hidden');
                         document.getElementById('originalText').textContent += ` ${message.original}`;
+                        document.getElementById('textLoader').classList.remove('hidden');
                         break;
                     case 'error':
                         showError(message.message);
@@ -104,7 +132,7 @@
                 }
             };
 
-            ws.onclose = function() {
+            ws.onclose = function () {
                 if (isRecording) {
                     setTimeout(connectWebSocket, CHUNK_TIME_INTERVAL);
                 }
@@ -112,6 +140,7 @@
         }
 
         async function uploadFile(file) {
+            showLoader();
             const reader = new FileReader();
             const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
             let currentChunk = 0;
@@ -123,7 +152,7 @@
                 reader.readAsDataURL(chunk);
             };
 
-            reader.onload = async function(e) {
+            reader.onload = async function (e) {
                 if (ws?.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
                         type: 'upload_chunk',
@@ -138,6 +167,8 @@
                     if (currentChunk < totalChunks) {
                         await new Promise(resolve => setTimeout(resolve, 100));
                         readChunk();
+                    } else {
+                        hideLoader();
                     }
                 }
             };
@@ -146,6 +177,7 @@
         }
 
         async function startRecording() {
+            showLoader();
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
@@ -168,7 +200,7 @@
                 let audioData = new Float32Array();
                 let audioChunkStartTime = Date.now();
 
-                processor.onaudioprocess = function(e) {
+                processor.onaudioprocess = function (e) {
                     if (!isRecording) return;
 
                     const input = e.inputBuffer.getChannelData(0);
@@ -177,9 +209,8 @@
                     newData.set(input, audioData.length);
                     audioData = newData;
 
-                    // Send data every 2 seconds
                     const currentTime = Date.now();
-                    if (currentTime - audioChunkStartTime >= 2000) {
+                    if (currentTime - audioChunkStartTime >= 5000) {
                         if (ws?.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify({
                                 type: 'audio',
@@ -198,11 +229,11 @@
                 recordingStartTime = Date.now();
                 timerInterval = setInterval(updateTimer, 1000);
 
-                // Update UI
                 document.getElementById('startButton').classList.add('hidden');
                 document.getElementById('stopButton').classList.remove('hidden');
                 document.getElementById('recordingStatus').classList.remove('hidden');
                 document.getElementById('error').classList.add('hidden');
+                hideLoader();
 
             } catch (err) {
                 showError('Error accessing microphone: ' + err.message);
@@ -210,41 +241,38 @@
         }
 
         function stopRecording() {
+            showLoader();
             isRecording = false;
-            
+
             if (processor) {
                 processor.disconnect();
                 audioInput?.disconnect();
             }
-            
+
             if (audioContext) {
                 audioContext.close();
             }
-            
+
             clearInterval(timerInterval);
 
-            // Update UI
             document.getElementById('startButton').classList.remove('hidden');
             document.getElementById('stopButton').classList.add('hidden');
             document.getElementById('recordingStatus').classList.add('hidden');
+            hideLoader();
         }
 
-        window.onload = function() {
+        window.onload = function () {
             connectWebSocket();
-            
+
             document.getElementById('startButton').onclick = startRecording;
             document.getElementById('stopButton').onclick = stopRecording;
-            
-            // File upload handler
-            document.getElementById('audioFile').addEventListener('change', function(e) {
+
+            document.getElementById('audioFile').addEventListener('change', function (e) {
                 const file = e.target.files[0];
                 if (file) {
-                    // Reset UI
                     document.getElementById('error').classList.add('hidden');
                     document.getElementById('originalText').textContent = '';
                     updateProgress(0);
-                    
-                    // Upload file
                     uploadFile(file);
                 }
             });
@@ -256,4 +284,5 @@
         };
     </script>
 </body>
+
 </html>
