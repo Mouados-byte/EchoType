@@ -6,3 +6,8 @@ sounddevice
 websockets
 numpy
 jinja2
+transformers
+torch
+sentencepiece
+sacremoses
+asyncio

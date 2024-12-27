@@ -3,106 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Transcription Service</title>
+    <title>Live Speech Translation</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8">Audio Transcription Service</h1>
-        
-        <!-- Recording Section -->
+        <h1 class="text-3xl font-bold mb-8">Live Speech Translation</h1>
+
+        <!-- Controls -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
             <div class="flex gap-4 mb-4">
-                <button id="startRecord" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                <button id="startButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
                     Start Recording
                 </button>
-                <button id="stopRecord" class="bg-red-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded hidden">
-                    Stop Recording
+                <button id="stopButton" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded hidden">
+                    Stop
                 </button>
             </div>
-            <div id="recordingStatus" class="text-sm text-gray-600 hidden">
-                Recording... <span id="recordingTime">0:00</span>
+            <div id="recordingStatus" class="text-sm text-gray-600 hidden mb-4">
+                Recording... <span id="timer">0:00</span>
             </div>
-            
-            <!-- Audio playback -->
-            <div id="audioPlayback" class="mt-4 hidden">
-                <audio id="recordedAudio" controls class="w-full"></audio>
-                <button id="sendRecording" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
-                    Send for Transcription
-                </button>
-            </div>
-        </div>
 
-        <!-- Upload Section -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <p class="mb-2 text-gray-700">Or upload an audio file:</p>
-            <input type="file" id="audioFile" accept="audio/*" class="mb-4">
-            <div id="uploadProgress" class="hidden">
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+            <!-- File Upload Section -->
+            <div class="border-t pt-4">
+                <p class="text-gray-700 mb-2">Or upload an audio file:</p>
+                <input type="file" id="audioFile" accept="audio/*" class="mb-2">
+                <div id="uploadProgress" class="hidden">
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="progressText" class="text-sm text-gray-600 mt-1">0%</p>
                 </div>
-                <p id="progressText" class="text-sm text-gray-600 mt-2">0%</p>
             </div>
         </div>
 
-        <!-- Status Messages -->
-        <div id="status" class="hidden bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6"></div>
-        
-        <!-- Error Messages -->
-        <div id="error" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6"></div>
-
-        <!-- Results Section -->
-        <div id="results" class="hidden bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-semibold mb-4">Transcription Results</h2>
-            <div class="mb-4">
-                <h3 class="font-semibold">Detected Language:</h3>
-                <p id="language" class="text-gray-700"></p>
-            </div>
-            <div class="mb-4">
-                <h3 class="font-semibold">Full Text:</h3>
-                <p id="fullText" class="text-gray-700 whitespace-pre-wrap"></p>
-            </div>
-            <div>
-                <h3 class="font-semibold mb-2">Segments:</h3>
-                <div id="segments" class="space-y-2"></div>
+        <!-- Translation Display -->
+        <div class="grid grid-cols-full gap-6">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-2">Original Speech</h2>
+                <div id="originalText" class="min-h-[200px] whitespace-pre-wrap text-gray-700">
+                </div>
             </div>
         </div>
+
+        <div id="status" class="hidden mt-6 bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4"></div>
+        <div id="error" class="hidden mt-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4"></div>
     </div>
 
     <script>
-        let mediaRecorder;
-        let audioChunks = [];
-        let recordingTimer;
+        let audioContext;
+        let audioInput;
+        let processor;
+        let ws;
+        let isRecording = false;
+        let startTime;
         let recordingStartTime;
-        let ws = null;
-        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+        let timerInterval;
 
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-            
-            ws.onmessage = function(event) {
-                const message = JSON.parse(event.data);
-                
-                switch(message.type) {
-                    case 'upload_progress':
-                        updateProgress(message.progress);
-                        break;
-                    case 'status':
-                        showStatus(message.message);
-                        break;
-                    case 'error':
-                        showError(message.message);
-                        break;
-                    case 'transcription_complete':
-                        showResults(message.result);
-                        break;
-                }
-            };
+        const SAMPLE_RATE = 16000;
+        const BUFFER_SIZE = 2048;
+        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks for file upload
+        const CHUNK_TIME_INTERVAL = 1000 // 1 second for each chunk
 
-            ws.onclose = function() {
-                setTimeout(connectWebSocket, 1000);
-            };
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+
+        function updateTimer() {
+            if (!recordingStartTime) return;
+
+            const now = Date.now();
+            const diff = Math.floor((now - recordingStartTime) / CHUNK_TIME_INTERVAL);
+            const minutes = Math.floor(diff / 60);
+            const seconds = diff % 60;
+            document.getElementById('timer').textContent =
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
         }
 
         function updateProgress(progress) {
@@ -111,109 +88,30 @@
             document.getElementById('progressText').textContent = `${Math.round(progress)}%`;
         }
 
-        function showStatus(message) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.textContent = message;
-            statusDiv.classList.remove('hidden');
-        }
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
-        function showError(message) {
-            const errorDiv = document.getElementById('error');
-            errorDiv.textContent = message;
-            errorDiv.classList.remove('hidden');
-            hideStatus();
-        }
+            ws.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                switch(message.type) {
+                    case 'transcription':
+                        document.getElementById('originalText').textContent += ` ${message.original}`;
+                        break;
+                    case 'error':
+                        showError(message.message);
+                        break;
+                }
+            };
 
-        function hideStatus() {
-            document.getElementById('status').classList.add('hidden');
-        }
-
-        function showResults(result) {
-            document.getElementById('results').classList.remove('hidden');
-            document.getElementById('language').textContent = result.language;
-            document.getElementById('fullText').textContent = result.text;
-            
-            const segmentsDiv = document.getElementById('segments');
-            segmentsDiv.innerHTML = '';
-            
-            result.segments.forEach(segment => {
-                const segmentDiv = document.createElement('div');
-                segmentDiv.className = 'bg-gray-50 p-3 rounded';
-                segmentDiv.innerHTML = `
-                    <div class="text-sm text-gray-500">[${segment.start}s -> ${segment.end}s]</div>
-                    <div class="mt-1">${segment.text}</div>
-                `;
-                segmentsDiv.appendChild(segmentDiv);
-            });
-        }
-
-        function updateRecordingTime() {
-            const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
-            const minutes = Math.floor(duration / 60);
-            const seconds = duration % 60;
-            document.getElementById('recordingTime').textContent = 
-                `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        }
-
-        async function startRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    document.getElementById('recordedAudio').src = audioUrl;
-                    document.getElementById('audioPlayback').classList.remove('hidden');
-                };
-
-                mediaRecorder.start();
-                recordingStartTime = Date.now();
-                recordingTimer = setInterval(updateRecordingTime, 1000);
-
-                document.getElementById('startRecord').classList.add('hidden');
-                document.getElementById('stopRecord').classList.remove('hidden');
-                document.getElementById('recordingStatus').classList.remove('hidden');
-                document.getElementById('audioPlayback').classList.add('hidden');
-                document.getElementById('results').classList.add('hidden');
-                hideStatus();
-
-            } catch (err) {
-                showError('Error accessing microphone: ' + err.message);
-            }
-        }
-
-        function stopRecording() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-                mediaRecorder.stream.getTracks().forEach(track => track.stop());
-                clearInterval(recordingTimer);
-                
-                document.getElementById('startRecord').classList.remove('hidden');
-                document.getElementById('stopRecord').classList.add('hidden');
-                document.getElementById('recordingStatus').classList.add('hidden');
-            }
-        }
-
-        async function sendRecordedAudio() {
-            if (audioChunks.length === 0) return;
-
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-            await uploadFile(audioBlob);
+            ws.onclose = function() {
+                if (isRecording) {
+                    setTimeout(connectWebSocket, CHUNK_TIME_INTERVAL);
+                }
+            };
         }
 
         async function uploadFile(file) {
-            // Reset UI
-            document.getElementById('error').classList.add('hidden');
-            document.getElementById('results').classList.add('hidden');
-            document.getElementById('status').classList.add('hidden');
-            updateProgress(0);
-
             const reader = new FileReader();
             const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
             let currentChunk = 0;
@@ -226,7 +124,7 @@
             };
 
             reader.onload = async function(e) {
-                if (ws && ws.readyState === WebSocket.OPEN) {
+                if (ws?.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
                         type: 'upload_chunk',
                         data: e.target.result,
@@ -235,6 +133,8 @@
                     }));
 
                     currentChunk++;
+                    updateProgress((currentChunk / totalChunks) * 100);
+
                     if (currentChunk < totalChunks) {
                         await new Promise(resolve => setTimeout(resolve, 100));
                         readChunk();
@@ -242,26 +142,117 @@
                 }
             };
 
-            reader.onerror = function(e) {
-                showError('Error reading file');
-            };
-
             readChunk();
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        sampleRate: SAMPLE_RATE,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                audioContext = new AudioContext({
+                    sampleRate: SAMPLE_RATE,
+                    latencyHint: 'interactive'
+                });
+
+                audioInput = audioContext.createMediaStreamSource(stream);
+                processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
+
+                let audioData = new Float32Array();
+                let audioChunkStartTime = Date.now();
+
+                processor.onaudioprocess = function(e) {
+                    if (!isRecording) return;
+
+                    const input = e.inputBuffer.getChannelData(0);
+                    const newData = new Float32Array(audioData.length + input.length);
+                    newData.set(audioData);
+                    newData.set(input, audioData.length);
+                    audioData = newData;
+
+                    // Send data every 2 seconds
+                    const currentTime = Date.now();
+                    if (currentTime - audioChunkStartTime >= 2000) {
+                        if (ws?.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: 'audio',
+                                data: Array.from(audioData)
+                            }));
+                        }
+                        audioData = new Float32Array();
+                        audioChunkStartTime = currentTime;
+                    }
+                };
+
+                audioInput.connect(processor);
+                processor.connect(audioContext.destination);
+
+                isRecording = true;
+                recordingStartTime = Date.now();
+                timerInterval = setInterval(updateTimer, 1000);
+
+                // Update UI
+                document.getElementById('startButton').classList.add('hidden');
+                document.getElementById('stopButton').classList.remove('hidden');
+                document.getElementById('recordingStatus').classList.remove('hidden');
+                document.getElementById('error').classList.add('hidden');
+
+            } catch (err) {
+                showError('Error accessing microphone: ' + err.message);
+            }
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            
+            if (processor) {
+                processor.disconnect();
+                audioInput?.disconnect();
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+            }
+            
+            clearInterval(timerInterval);
+
+            // Update UI
+            document.getElementById('startButton').classList.remove('hidden');
+            document.getElementById('stopButton').classList.add('hidden');
+            document.getElementById('recordingStatus').classList.add('hidden');
         }
 
         window.onload = function() {
             connectWebSocket();
-
-            document.getElementById('startRecord').addEventListener('click', startRecording);
-            document.getElementById('stopRecord').addEventListener('click', stopRecording);
-            document.getElementById('sendRecording').addEventListener('click', sendRecordedAudio);
-
+            
+            document.getElementById('startButton').onclick = startRecording;
+            document.getElementById('stopButton').onclick = stopRecording;
+            
+            // File upload handler
             document.getElementById('audioFile').addEventListener('change', function(e) {
                 const file = e.target.files[0];
                 if (file) {
+                    // Reset UI
+                    document.getElementById('error').classList.add('hidden');
+                    document.getElementById('originalText').textContent = '';
+                    updateProgress(0);
+                    
+                    // Upload file
                     uploadFile(file);
                 }
             });
+        };
+
+        window.onbeforeunload = () => {
+            stopRecording();
+            if (ws) ws.close();
         };
     </script>
 </body>
