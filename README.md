@@ -1,4 +1,5 @@
 # Whisper API
+![image](https://github.com/user-attachments/assets/5d021de2-7838-4c5d-9002-10d84515e0ca)
 
 ## To run
 ```
