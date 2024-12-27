@@ -2,3 +2,7 @@ fastapi==0.104.1
 uvicorn==0.24.0
 python-multipart==0.0.6
 faster-whisper==0.9.0
+sounddevice
+websockets
+numpy
+jinja2
