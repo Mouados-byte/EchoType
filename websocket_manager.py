@@ -35,7 +35,7 @@ class ConnectionManager:
             del self.processing_locks[conn_id]
 
     async def process_audio_chunk(self, websocket: WebSocket, audio_data: List[float],
-                                transcription_service) -> Optional[str]:
+                                transcription_service, language: str = None) -> Optional[str]:
         try:
             audio_array = np.array(audio_data, dtype=np.float32)
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=True) as temp_wav:
@@ -45,7 +45,7 @@ class ConnectionManager:
                     wav_file.setframerate(16000)
                     wav_file.writeframes((audio_array * 32767).astype(np.int16).tobytes())
                 
-                result = transcription_service.transcribe_file(temp_wav.name)
+                result = transcription_service.transcribe_file(temp_wav.name, language)
                 return result.full_text if result and result.full_text.strip() else None
 
         except Exception as e:

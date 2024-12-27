@@ -46,7 +46,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     result = await manager.process_audio_chunk(
                         websocket,
                         message["data"],
-                        whisper_service
+                        whisper_service,
+                        language=message.get("language") 
                     )
                     if result:
                         await websocket.send_json({
@@ -73,7 +74,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                     temp_file.flush()
                                     
                                     try:
-                                        result = whisper_service.transcribe_file(temp_file.name)
+                                        result = whisper_service.transcribe_file(temp_file.name, message.get("language"))
                                         if result and result.full_text.strip():
                                             await websocket.send_json({
                                                 "type": "transcription",
