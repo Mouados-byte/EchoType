@@ -49,5 +49,10 @@ class ConnectionManager:
                 return result.full_text if result and result.full_text.strip() else None
 
         except Exception as e:
-            logger.error(f"Error processing audio chunk: {str(e)}")
             return None
+
+    def cleanup(self):
+        """Clean up resources."""
+        self.audio_buffers.clear()
+        self.file_chunks.clear()
+        self.processing_locks.clear()

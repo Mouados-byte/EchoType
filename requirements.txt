@@ -13,3 +13,4 @@ sacremoses
 asyncio
 scipy
 soundfile
+librosa
