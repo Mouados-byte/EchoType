@@ -19,7 +19,7 @@ from websocket_manager import ConnectionManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Live Speech Translation")
+app = FastAPI(title="EchoType")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 

@@ -4,23 +4,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Speech Translation Studio</title>
+    <title>EchoType</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        
+
         body {
             font-family: 'Inter', sans-serif;
         }
-        
+
         .recording-dot {
             animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
-        
+
         @keyframes pulse {
-            0%, 100% {
+
+            0%,
+            100% {
                 opacity: 1;
             }
+
             50% {
                 opacity: .5;
             }
@@ -29,422 +32,465 @@
 </head>
 
 <body class="bg-slate-50 min-h-screen">
-    <div class="max-w-5xl mx-auto px-4 py-8">
-        <header class="mb-12">
-            <h1 class="text-4xl font-bold text-slate-800 mb-2">Speech Translation Studio</h1>
-            <p class="text-slate-600">Convert speech to text in multiple languages</p>
-        </header>
 
-        <!-- Main Controls -->
-        <div class="grid gap-8 md:grid-cols-[300px,1fr]">
-            <aside class="space-y-6">
-                <!-- Recording Controls -->
-                <div class="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
-                    <h2 class="text-lg font-semibold text-slate-800 mb-4">Recording Controls</h2>
-                    
-                    <div class="space-y-4">
-                        <button id="startButton" class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-                            Start Recording
-                        </button>
-                        
-                        <button id="stopButton" class="hidden w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
-                            Stop Recording
-                        </button>
-                    </div>
-
-                    <div id="recordingStatus" class="hidden">
-                        <div class="flex items-center space-x-2 text-sm text-slate-600">
-                            <span class="recording-dot w-2 h-2 rounded-full bg-red-500"></span>
-                            <span>Recording</span>
-                            <span id="timer" class="ml-auto font-medium">0:00</span>
+    <body class="bg-slate-50 min-h-screen">
+        <!-- Navigation Bar -->
+        <nav class="bg-white border-b border-slate-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <!-- Logo/Brand -->
+                        <div class="flex-shrink-0 flex items-center">
+                            <svg class="h-8 w-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z">
+                                </path>
+                            </svg>
+                            <span class="ml-2 text-xl font-semibold text-slate-900">EchoType</span>
                         </div>
-                    </div>
-                </div>
 
-                <!-- Language Selection -->
-                <div class="bg-white border border-slate-200 rounded-lg p-6">
-                    <h2 class="text-lg font-semibold text-slate-800 mb-4">Language</h2>
-                    <select id="languageSelect" class="w-full bg-white border border-slate-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="fr">French</option>
-                        <option value="en">English</option>
-                        <option value="ar">Arabic</option>
-                        <option value="es">Spanish</option>
-                    </select>
-                </div>
+                    </div>
 
-                <!-- File Upload -->
-                <div class="bg-white border border-slate-200 rounded-lg p-6">
-                    <h2 class="text-lg font-semibold text-slate-800 mb-4">Upload Audio</h2>
-                    <div class="space-y-4">
-                        <input type="file" id="audioFile" accept="audio/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
-                        
-                        <div id="uploadProgress" class="hidden space-y-2">
-                            <div class="w-full bg-slate-200 rounded-full h-1.5">
-                                <div id="progressBar" class="bg-indigo-600 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-                            </div>
-                            <p id="progressText" class="text-xs text-slate-600">0%</p>
-                        </div>
+                    <!-- Right side -->
+                    <div class="flex items-center">
+                        <a href="https://github.com/Mouados-byte/EchoType" 
+                           target="_blank" 
+                           rel="noopener noreferrer" 
+                           class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-colors">
+                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"></path>
+                            </svg>
+                            GitHub
+                        </a>
                     </div>
-                </div>
-            </aside>
-
-            <!-- Output Section -->
-            <div class="bg-white border border-slate-200 rounded-lg p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="flex items-center space-x-3">
-                        <h2 class="text-lg font-semibold text-slate-800">Transcription</h2>
-                        <span class="text-sm text-slate-500">(Results appear with a slight delay)</span>
-                    </div>
-                    <div id="textLoader" class="hidden">
-                        <div class="flex space-x-1">
-                            <div class="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"></div>
-                            <div class="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-                            <div class="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="relative min-h-[400px] bg-slate-50 rounded-lg p-4">
-                    <div id="originalText" class="whitespace-pre-wrap text-slate-700 leading-relaxed"></div>
                 </div>
             </div>
+        </nav>
+        <div class="max-w-5xl mx-auto px-4 py-8">
+            <header class="mb-12">
+                <h1 class="text-4xl font-bold text-slate-800 mb-2">EchoType</h1>
+                <p class="text-slate-600">Convert speech to text in multiple languages</p>
+            </header>
+
+            <!-- Main Controls -->
+            <div class="grid gap-8 md:grid-cols-[300px,1fr]">
+                <aside class="space-y-6">
+                    <!-- Recording Controls -->
+                    <div class="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
+                        <h2 class="text-lg font-semibold text-slate-800 mb-4">Recording Controls</h2>
+
+                        <div class="space-y-4">
+                            <button id="startButton"
+                                class="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                                Start Recording
+                            </button>
+
+                            <button id="stopButton"
+                                class="hidden w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
+                                Stop Recording
+                            </button>
+                        </div>
+
+                        <div id="recordingStatus" class="hidden">
+                            <div class="flex items-center space-x-2 text-sm text-slate-600">
+                                <span class="recording-dot w-2 h-2 rounded-full bg-red-500"></span>
+                                <span>Recording</span>
+                                <span id="timer" class="ml-auto font-medium">0:00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Language Selection -->
+                    <div class="bg-white border border-slate-200 rounded-lg p-6">
+                        <h2 class="text-lg font-semibold text-slate-800 mb-4">Language</h2>
+                        <select id="languageSelect"
+                            class="w-full bg-white border border-slate-300 rounded-lg py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="fr">French</option>
+                            <option value="en">English</option>
+                            <option value="ar">Arabic</option>
+                            <option value="es">Spanish</option>
+                        </select>
+                    </div>
+
+                    <!-- File Upload -->
+                    <div class="bg-white border border-slate-200 rounded-lg p-6">
+                        <h2 class="text-lg font-semibold text-slate-800 mb-4">Upload Audio</h2>
+                        <div class="space-y-4">
+                            <input type="file" id="audioFile" accept="audio/*"
+                                class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+
+                            <div id="uploadProgress" class="hidden space-y-2">
+                                <div class="w-full bg-slate-200 rounded-full h-1.5">
+                                    <div id="progressBar"
+                                        class="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
+                                        style="width: 0%"></div>
+                                </div>
+                                <p id="progressText" class="text-xs text-slate-600">0%</p>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Output Section -->
+                <div class="bg-white border border-slate-200 rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <h2 class="text-lg font-semibold text-slate-800">Transcription</h2>
+                            <span class="text-sm text-slate-500">(Results appear with a slight delay)</span>
+                        </div>
+                        <div id="textLoader" class="hidden">
+                            <div class="flex space-x-1">
+                                <div class="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"></div>
+                                <div class="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"
+                                    style="animation-delay: 0.2s"></div>
+                                <div class="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"
+                                    style="animation-delay: 0.4s"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative min-h-[400px] bg-slate-50 rounded-lg p-4">
+                        <div id="originalText" class="whitespace-pre-wrap text-slate-700 leading-relaxed"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="status"
+                class="hidden mt-6 bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700 p-4 rounded-r-lg"></div>
+            <div id="error" class="hidden mt-6 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-r-lg"></div>
         </div>
 
-        <!-- Status Messages -->
-        <div id="status" class="hidden mt-6 bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700 p-4 rounded-r-lg"></div>
-        <div id="error" class="hidden mt-6 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-r-lg"></div>
-    </div>
+        <script>
+            let audioContext;
+            let audioInput;
+            let processor;
+            let ws;
+            let isRecording = false;
+            let recordingStartTime;
+            let timerInterval;
 
-    <script>
-        let audioContext;
-        let audioInput;
-        let processor;
-        let ws;
-        let isRecording = false;
-        let recordingStartTime;
-        let timerInterval;
+            const TARGET_SAMPLE_RATE = 16000;
+            const BUFFER_SIZE = 2048;
+            const CHUNK_TIME_INTERVAL = 2000;
 
-        const TARGET_SAMPLE_RATE = 16000;
-        const BUFFER_SIZE = 2048;
-        const CHUNK_TIME_INTERVAL = 2000;
-
-        function writeString(view, offset, string) {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        }
-
-        function createWavBuffer(audioData, sampleRate) {
-            const buffer = new ArrayBuffer(44 + audioData.length * 2);
-            const view = new DataView(buffer);
-
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + audioData.length * 2, true);
-            writeString(view, 8, 'WAVE');
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true);
-            view.setUint16(22, 1, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, sampleRate * 2, true);
-            view.setUint16(32, 2, true);
-            view.setUint16(34, 16, true);
-            writeString(view, 36, 'data');
-            view.setUint32(40, audioData.length * 2, true);
-
-            let index = 44;
-            for (let i = 0; i < audioData.length; i++) {
-                view.setInt16(index, audioData[i] * 32767, true);
-                index += 2;
+            function writeString(view, offset, string) {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
             }
 
-            return buffer;
-        }
+            function createWavBuffer(audioData, sampleRate) {
+                const buffer = new ArrayBuffer(44 + audioData.length * 2);
+                const view = new DataView(buffer);
 
-        function showError(message) {
-            const errorDiv = document.getElementById('error');
-            errorDiv.textContent = message;
-            errorDiv.classList.remove('hidden');
-            document.getElementById('textLoader').classList.add('hidden');
-        }
+                writeString(view, 0, 'RIFF');
+                view.setUint32(4, 36 + audioData.length * 2, true);
+                writeString(view, 8, 'WAVE');
+                writeString(view, 12, 'fmt ');
+                view.setUint32(16, 16, true);
+                view.setUint16(20, 1, true);
+                view.setUint16(22, 1, true);
+                view.setUint32(24, sampleRate, true);
+                view.setUint32(28, sampleRate * 2, true);
+                view.setUint16(32, 2, true);
+                view.setUint16(34, 16, true);
+                writeString(view, 36, 'data');
+                view.setUint32(40, audioData.length * 2, true);
 
-        function updateTimer() {
-            if (!recordingStartTime) return;
-            const now = Date.now();
-            const diff = Math.floor((now - recordingStartTime) / 1000);
-            const minutes = Math.floor(diff / 60);
-            const seconds = diff % 60;
-            document.getElementById('timer').textContent =
-                `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        }
-
-        // Function to simulate natural typing with variable speed
-        function typeWords(words, container, delay = 300) {
-            return new Promise((resolve) => {
-                let i = 0;
-                function typeNextWord() {
-                    if (i < words.length) {
-                        const word = words[i];
-                        // Add the word and a space
-                        container.textContent += word + " ";
-                        i++;
-                        
-                        // Add longer pauses after punctuation
-                        if (word.match(/[.!?]$/)) {
-                            setTimeout(typeNextWord, delay + 300);
-                        } else if (word.match(/[,;:]$/)) {
-                            setTimeout(typeNextWord, delay + 150);
-                        } else {
-                            setTimeout(typeNextWord, delay);
-                        }
-                    } else {
-                        resolve();
-                    }
-                }
-                typeNextWord();
-            });
-        }        
-
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-
-            ws.onmessage = function (event) {
-                const message = JSON.parse(event.data);
-                switch (message.type) {
-                    case 'transcription':
-                        // Split the incoming text into words and type them out
-                        const words = message.text.trim().split(/\s+/);
-                        const container = document.getElementById('originalText');
-                        typeWords(words, container, 200);
-                        break;
-                    case 'error':
-                        showError(message.message);
-                        break;
-                }
-            };
-
-            ws.onclose = function () {
-                if (isRecording) {
-                    setTimeout(connectWebSocket, 1000);
-                }
-            };
-        }
-        
-        async function startRecording() {
-            connectWebSocket();
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        channelCount: 1,
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
-
-                audioContext = new AudioContext();
-                console.log(`Actual sample rate: ${audioContext.sampleRate}`);
-
-                audioInput = audioContext.createMediaStreamSource(stream);
-                processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
-
-                // Buffer for 3 seconds of audio
-                const minSamples = audioContext.sampleRate * 3;
-                let accumulatedData = new Float32Array(minSamples);
-                let currentPosition = 0;
-
-                // Function to convert audio buffer to base64 in chunks
-                function bufferToBase64(buffer) {
-                    const chunk_size = 1024;
-                    let binary = '';
-                    const bytes = new Uint8Array(buffer);
-                    
-                    for (let i = 0; i < bytes.byteLength; i += chunk_size) {
-                        const slice = bytes.slice(i, Math.min(i + chunk_size, bytes.byteLength));
-                        binary += String.fromCharCode.apply(null, slice);
-                    }
-                    
-                    return btoa(binary);
+                let index = 44;
+                for (let i = 0; i < audioData.length; i++) {
+                    view.setInt16(index, audioData[i] * 32767, true);
+                    index += 2;
                 }
 
-                processor.onaudioprocess = function (e) {
-                    if (!isRecording) return;
+                return buffer;
+            }
 
-                    const input = e.inputBuffer.getChannelData(0);
-                    
-                    // Copy input data to accumulated buffer
-                    for (let i = 0; i < input.length && currentPosition < minSamples; i++) {
-                        accumulatedData[currentPosition] = input[i];
-                        currentPosition++;
-                    }
+            function showError(message) {
+                const errorDiv = document.getElementById('error');
+                errorDiv.textContent = message;
+                errorDiv.classList.remove('hidden');
+                document.getElementById('textLoader').classList.add('hidden');
+            }
 
-                    // When we have enough samples, send the data
-                    if (currentPosition >= minSamples) {
-                        console.log('Buffer full, sending chunk of size:', accumulatedData.length);
-                        
-                        if (ws?.readyState === WebSocket.OPEN) {
-                            try {
-                                const wavBuffer = createWavBuffer(accumulatedData, audioContext.sampleRate);
-                                const base64Data = bufferToBase64(wavBuffer);
+            function updateTimer() {
+                if (!recordingStartTime) return;
+                const now = Date.now();
+                const diff = Math.floor((now - recordingStartTime) / 1000);
+                const minutes = Math.floor(diff / 60);
+                const seconds = diff % 60;
+                document.getElementById('timer').textContent =
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
 
-                                ws.send(JSON.stringify({
-                                    type: 'audio_chunk',
-                                    data: `data:audio/wav;base64,${base64Data}`,
-                                    language: document.getElementById('languageSelect').value
-                                }));
+            // Function to simulate natural typing with variable speed
+            function typeWords(words, container, delay = 300) {
+                return new Promise((resolve) => {
+                    let i = 0;
+                    function typeNextWord() {
+                        if (i < words.length) {
+                            const word = words[i];
+                            // Add the word and a space
+                            container.textContent += word + " ";
+                            i++;
 
-                                // Reset for next chunk
-                                accumulatedData = new Float32Array(minSamples);
-                                currentPosition = 0;
-                                
-                                console.log('Chunk sent successfully');
-                            } catch (error) {
-                                console.error('Error processing audio chunk:', error);
+                            // Add longer pauses after punctuation
+                            if (word.match(/[.!?]$/)) {
+                                setTimeout(typeNextWord, delay + 300);
+                            } else if (word.match(/[,;:]$/)) {
+                                setTimeout(typeNextWord, delay + 150);
+                            } else {
+                                setTimeout(typeNextWord, delay);
                             }
                         } else {
-                            console.log('WebSocket not ready, state:', ws?.readyState);
+                            resolve();
                         }
                     }
-                };
-
-                audioInput.connect(processor);
-                processor.connect(audioContext.destination);
-
-                isRecording = true;
-                recordingStartTime = Date.now();
-                timerInterval = setInterval(updateTimer, 1000);
-
-                document.getElementById('startButton').classList.add('hidden');
-                document.getElementById('stopButton').classList.remove('hidden');
-                document.getElementById('recordingStatus').classList.remove('hidden');
-                document.getElementById('error').classList.add('hidden');
-                document.getElementById('originalText').textContent = '';
-                document.getElementById('textLoader').classList.remove('hidden');
-
-                const statusDiv = document.getElementById('status');
-                statusDiv.textContent = `Recording at ${audioContext.sampleRate}Hz`;
-                statusDiv.classList.remove('hidden');
-
-            } catch (err) {
-                showError('Error accessing microphone: ' + err.message);
-            }
-        }
-
-        function stopRecording() {
-            isRecording = false;
-
-            if (processor) {
-                processor.disconnect();
-                audioInput?.disconnect();
+                    typeNextWord();
+                });
             }
 
-            if (audioContext) {
-                audioContext.close();
-            }
+            function connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
-            clearInterval(timerInterval);
-
-            document.getElementById('startButton').classList.remove('hidden');
-            document.getElementById('stopButton').classList.add('hidden');
-            document.getElementById('recordingStatus').classList.add('hidden');
-            document.getElementById('textLoader').classList.add('hidden');
-        }
-
-        async function uploadFile(file) {
-            document.getElementById('error').classList.add('hidden');
-            document.getElementById('originalText').textContent = '';
-            document.getElementById('uploadProgress').classList.remove('hidden');
-            document.getElementById('textLoader').classList.remove('hidden');
-
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsTranscribe = new WebSocket(`${protocol}//${window.location.host}/ws/transcribe`);
-            const reader = new FileReader();
-            const CHUNK_SIZE = 1024 * 1024;
-            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-            let currentChunk = 0;
-
-            wsTranscribe.onopen = function () {
-                const readChunk = () => {
-                    const start = currentChunk * CHUNK_SIZE;
-                    const end = Math.min(start + CHUNK_SIZE, file.size);
-                    const chunk = file.slice(start, end);
-                    reader.readAsDataURL(chunk);
-                };
-
-                reader.onload = function (e) {
-                    wsTranscribe.send(JSON.stringify({
-                        type: 'file_chunk',
-                        data: e.target.result,
-                        chunk_number: currentChunk + 1,
-                        total_chunks: totalChunks,
-                        language: document.getElementById('languageSelect').value
-                    }));
-                };
-
-                wsTranscribe.onmessage = function (event) {
+                ws.onmessage = function (event) {
                     const message = JSON.parse(event.data);
                     switch (message.type) {
-                        case 'chunk_received':
-                            currentChunk++;
-                            const progress = (currentChunk / totalChunks) * 100;
-                            document.getElementById('progressBar').style.width = `${progress}%`;
-                            document.getElementById('progressText').textContent = `${Math.round(progress)}%`;
-                            if (currentChunk < totalChunks) {
-                                readChunk();
-                            }
-                            break;
-                        case 'segment':
+                        case 'transcription':
                             // Split the incoming text into words and type them out
                             const words = message.text.trim().split(/\s+/);
                             const container = document.getElementById('originalText');
-                            typeWords(words, container);
-                            break;
-                        case 'complete':
-                            document.getElementById('uploadProgress').classList.add('hidden');
-                            document.getElementById('textLoader').classList.add('hidden');
-                            wsTranscribe.close();
+                            typeWords(words, container, 200);
                             break;
                         case 'error':
                             showError(message.message);
-                            wsTranscribe.close();
                             break;
                     }
                 };
 
-                readChunk();
-            };
+                ws.onclose = function () {
+                    if (isRecording) {
+                        setTimeout(connectWebSocket, 1000);
+                    }
+                };
+            }
 
-            wsTranscribe.onerror = function (error) {
-                showError('WebSocket Error: ' + error);
-                wsTranscribe.close();
-            };
-        }
+            async function startRecording() {
+                connectWebSocket();
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            channelCount: 1,
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
 
-        // Initialize everything when the window loads
-        window.onload = function () {
-            connectWebSocket();
+                    audioContext = new AudioContext();
+                    console.log(`Actual sample rate: ${audioContext.sampleRate}`);
 
-            document.getElementById('startButton').onclick = startRecording;
-            document.getElementById('stopButton').onclick = stopRecording;
+                    audioInput = audioContext.createMediaStreamSource(stream);
+                    processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
 
-            // Initialize file upload handling
-            document.getElementById('audioFile').addEventListener('change', function (e) {
-                const file = e.target.files[0];
-                if (file) {
+                    // Buffer for 3 seconds of audio
+                    const minSamples = audioContext.sampleRate * 3;
+                    let accumulatedData = new Float32Array(minSamples);
+                    let currentPosition = 0;
+
+                    // Function to convert audio buffer to base64 in chunks
+                    function bufferToBase64(buffer) {
+                        const chunk_size = 1024;
+                        let binary = '';
+                        const bytes = new Uint8Array(buffer);
+
+                        for (let i = 0; i < bytes.byteLength; i += chunk_size) {
+                            const slice = bytes.slice(i, Math.min(i + chunk_size, bytes.byteLength));
+                            binary += String.fromCharCode.apply(null, slice);
+                        }
+
+                        return btoa(binary);
+                    }
+
+                    processor.onaudioprocess = function (e) {
+                        if (!isRecording) return;
+
+                        const input = e.inputBuffer.getChannelData(0);
+
+                        // Copy input data to accumulated buffer
+                        for (let i = 0; i < input.length && currentPosition < minSamples; i++) {
+                            accumulatedData[currentPosition] = input[i];
+                            currentPosition++;
+                        }
+
+                        // When we have enough samples, send the data
+                        if (currentPosition >= minSamples) {
+                            console.log('Buffer full, sending chunk of size:', accumulatedData.length);
+
+                            if (ws?.readyState === WebSocket.OPEN) {
+                                try {
+                                    const wavBuffer = createWavBuffer(accumulatedData, audioContext.sampleRate);
+                                    const base64Data = bufferToBase64(wavBuffer);
+
+                                    ws.send(JSON.stringify({
+                                        type: 'audio_chunk',
+                                        data: `data:audio/wav;base64,${base64Data}`,
+                                        language: document.getElementById('languageSelect').value
+                                    }));
+
+                                    // Reset for next chunk
+                                    accumulatedData = new Float32Array(minSamples);
+                                    currentPosition = 0;
+
+                                    console.log('Chunk sent successfully');
+                                } catch (error) {
+                                    console.error('Error processing audio chunk:', error);
+                                }
+                            } else {
+                                console.log('WebSocket not ready, state:', ws?.readyState);
+                            }
+                        }
+                    };
+
+                    audioInput.connect(processor);
+                    processor.connect(audioContext.destination);
+
+                    isRecording = true;
+                    recordingStartTime = Date.now();
+                    timerInterval = setInterval(updateTimer, 1000);
+
+                    document.getElementById('startButton').classList.add('hidden');
+                    document.getElementById('stopButton').classList.remove('hidden');
+                    document.getElementById('recordingStatus').classList.remove('hidden');
                     document.getElementById('error').classList.add('hidden');
                     document.getElementById('originalText').textContent = '';
-                    uploadFile(file);
-                }
-            });
-        };
+                    document.getElementById('textLoader').classList.remove('hidden');
 
-        // Clean up when the window closes
-        window.onbeforeunload = () => {
-            stopRecording();
-            if (ws) ws.close();
-        };
-    </script>
-</body>
+                    const statusDiv = document.getElementById('status');
+                    statusDiv.textContent = `Recording at ${audioContext.sampleRate}Hz`;
+                    statusDiv.classList.remove('hidden');
+
+                } catch (err) {
+                    showError('Error accessing microphone: ' + err.message);
+                }
+            }
+
+            function stopRecording() {
+                isRecording = false;
+
+                if (processor) {
+                    processor.disconnect();
+                    audioInput?.disconnect();
+                }
+
+                if (audioContext) {
+                    audioContext.close();
+                }
+
+                clearInterval(timerInterval);
+
+                document.getElementById('startButton').classList.remove('hidden');
+                document.getElementById('stopButton').classList.add('hidden');
+                document.getElementById('recordingStatus').classList.add('hidden');
+                document.getElementById('textLoader').classList.add('hidden');
+            }
+
+            async function uploadFile(file) {
+                document.getElementById('error').classList.add('hidden');
+                document.getElementById('originalText').textContent = '';
+                document.getElementById('uploadProgress').classList.remove('hidden');
+                document.getElementById('textLoader').classList.remove('hidden');
+
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsTranscribe = new WebSocket(`${protocol}//${window.location.host}/ws/transcribe`);
+                const reader = new FileReader();
+                const CHUNK_SIZE = 1024 * 1024;
+                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                let currentChunk = 0;
+
+                wsTranscribe.onopen = function () {
+                    const readChunk = () => {
+                        const start = currentChunk * CHUNK_SIZE;
+                        const end = Math.min(start + CHUNK_SIZE, file.size);
+                        const chunk = file.slice(start, end);
+                        reader.readAsDataURL(chunk);
+                    };
+
+                    reader.onload = function (e) {
+                        wsTranscribe.send(JSON.stringify({
+                            type: 'file_chunk',
+                            data: e.target.result,
+                            chunk_number: currentChunk + 1,
+                            total_chunks: totalChunks,
+                            language: document.getElementById('languageSelect').value
+                        }));
+                    };
+
+                    wsTranscribe.onmessage = function (event) {
+                        const message = JSON.parse(event.data);
+                        switch (message.type) {
+                            case 'chunk_received':
+                                currentChunk++;
+                                const progress = (currentChunk / totalChunks) * 100;
+                                document.getElementById('progressBar').style.width = `${progress}%`;
+                                document.getElementById('progressText').textContent = `${Math.round(progress)}%`;
+                                if (currentChunk < totalChunks) {
+                                    readChunk();
+                                }
+                                break;
+                            case 'segment':
+                                // Split the incoming text into words and type them out
+                                const words = message.text.trim().split(/\s+/);
+                                const container = document.getElementById('originalText');
+                                typeWords(words, container);
+                                break;
+                            case 'complete':
+                                document.getElementById('uploadProgress').classList.add('hidden');
+                                document.getElementById('textLoader').classList.add('hidden');
+                                wsTranscribe.close();
+                                break;
+                            case 'error':
+                                showError(message.message);
+                                wsTranscribe.close();
+                                break;
+                        }
+                    };
+
+                    readChunk();
+                };
+
+                wsTranscribe.onerror = function (error) {
+                    showError('WebSocket Error: ' + error);
+                    wsTranscribe.close();
+                };
+            }
+
+            // Initialize everything when the window loads
+            window.onload = function () {
+                connectWebSocket();
+
+                document.getElementById('startButton').onclick = startRecording;
+                document.getElementById('stopButton').onclick = stopRecording;
+
+                // Initialize file upload handling
+                document.getElementById('audioFile').addEventListener('change', function (e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        document.getElementById('error').classList.add('hidden');
+                        document.getElementById('originalText').textContent = '';
+                        uploadFile(file);
+                    }
+                });
+            };
+
+            // Clean up when the window closes
+            window.onbeforeunload = () => {
+                stopRecording();
+                if (ws) ws.close();
+            };
+        </script>
+    </body>
 
 </html>
