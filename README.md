@@ -2,6 +2,8 @@
 
 ## Client Side (index.html)
 
+![image](https://github.com/user-attachments/assets/802411a5-4985-4593-a9b8-b4e7709ac3ad)
+
 The main HTML file contains three core components:
 
 1. Audio Capture & Processing
