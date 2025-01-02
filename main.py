@@ -44,8 +44,6 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_json()
-            print(data["type"])
-            print(data["language"])
             
             if data["type"] == "audio_chunk":
                 try:
@@ -155,8 +153,6 @@ async def websocket_transcribe(websocket: WebSocket):
                         try:
                             # Transcribe and handle generator
                             segments, info = whisper_service.model.transcribe(temp_path)
-                            
-                            print(segments)
                             
                             # Process segments from generator
                             segment_list = []
