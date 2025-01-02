@@ -23,6 +23,8 @@ The main HTML file contains three core components:
 - Base64 conversion
 
 ## Server Side (FastAPI)
+![diagram](https://github.com/user-attachments/assets/ec5712b8-e8b3-4ec0-a437-f5199bec9915)
+
 
 ### WebSocket Endpoints
 
