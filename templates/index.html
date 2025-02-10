@@ -281,12 +281,13 @@
                 connectWebSocket();
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            channelCount: 1,
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true
-                        }
+						audio: {
+							channelCount: 1,
+							sampleRate: 48000,  // Add explicit sample rate
+							echoCancellation: false,  // Disable if clean audio source
+							noiseSuppression: false,  // Disable if in quiet environment
+							autoGainControl: false    // Disable for more consistent levels
+						}
                     });
 
                     audioContext = new AudioContext();
