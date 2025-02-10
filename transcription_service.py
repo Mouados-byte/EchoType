@@ -2,7 +2,7 @@ import logging
 import tempfile
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
-from faster_whisper import WhisperModel
+import whisper
 import os
 import numpy as np
 from scipy import signal
@@ -39,10 +39,9 @@ class WhisperTranscriptionService:
        
        try:
            logger.info(f"Loading Whisper model: {model_size}")
-           self.model = WhisperModel(
+           self.model = whisper.load_model(
                model_size,
                device=device,
-               compute_type=compute_type
            )
            logger.info("Whisper model loaded successfully")
        except Exception as e:
@@ -69,13 +68,16 @@ class WhisperTranscriptionService:
 
    def transcribe_file(self, file_path: str, language: str = None) -> TranscriptionResult:
        try:
+           print("read file")
            audio, sr = sf.read(file_path)
            cleaned_audio = self.clean_audio(audio, sr)
            
            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
                sf.write(temp_file.name, cleaned_audio, sr)
                
-               segments, info = self.model.transcribe(
+               print("Before transcribe")
+               
+               segments = self.model.transcribe(
                    temp_file.name,
                    beam_size=self.beam_size,
                    vad_filter=self.vad_filter,
@@ -85,23 +87,21 @@ class WhisperTranscriptionService:
                
                os.unlink(temp_file.name)
                
-               transcription_segments = []
-               full_text_parts = []
+            #    transcription_segments = []
+            #    full_text_parts = []
                
-               for segment in segments:
-                   transcription_segments.append(
-                       TranscriptionSegment(
-                           text=segment.text,
-                           start=round(segment.start, 2),
-                           end=round(segment.end, 2)
-                       )
-                   )
-                   full_text_parts.append(segment.text)
+            #    for segment in segments:
+            #        transcription_segments.append(
+            #            TranscriptionSegment(
+            #                text=segment.text,
+            #                start=round(segment.start, 2),
+            #                end=round(segment.end, 2)
+            #            )
+            #        )
+            #        full_text_parts.append(segment.text)
                
                return TranscriptionResult(
-                   full_text=" ".join(full_text_parts).strip(),
-                   language=info.language,
-                   segments=transcription_segments
+                   full_text=segments["text"]
                )
                
        except Exception as e:

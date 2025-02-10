@@ -9,7 +9,7 @@ from pathlib import Path
 import logging
 import json
 import base64
-
+import torch
 import numpy as np
 import soundfile
 from transcription_service import WhisperTranscriptionService
@@ -23,11 +23,10 @@ app = FastAPI(title="EchoType")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Initialize services
 whisper_service = WhisperTranscriptionService(
     model_size="small",
-    device="cpu",
-    compute_type="int8"
+    device="cuda" if torch.cuda.is_available() else "cpu",
+    compute_type="float16" if torch.cuda.is_available() else "int8",
 )
 
 # Initialize connection manager
@@ -36,6 +35,10 @@ manager = ConnectionManager()  # Adjust workers based on your CPU
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/upload_form", response_class=HTMLResponse)
+async def upload_form(request: Request):
+    return templates.TemplateResponse("upload_form.html", {"request": request})
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -58,12 +61,13 @@ async def websocket_endpoint(websocket: WebSocket):
                         
                         try:
                             # Transcribe individual chunk
-                            segments, info = whisper_service.model.transcribe(temp_path, language=data["language"])
-                            full_text = " ".join(segment.text for segment in segments).strip() or ""
+                            segments = whisper_service.model.transcribe(temp_path, language=data["language"])
 
                             await websocket.send_json({
                                 "type": "transcription",
-                                "text": full_text
+                                "text": segments["text"],
+                                "language": segments["language"],
+                                "segments": segments["segments"]
                             })
 
                         finally:
@@ -99,7 +103,6 @@ async def transcribe_audio(file: UploadFile):
 
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
             temp_path = temp_file.name
-            # Write content to temporary file
             temp_file.write(content)
             temp_file.flush()
             
@@ -115,10 +118,9 @@ async def transcribe_audio(file: UploadFile):
             return {
                 "text": full_text
             }
-        
+            
     except Exception as e:
         return {"success": False, "error": str(e)}
-
 
 @app.websocket("/ws/transcribe")
 async def websocket_transcribe(websocket: WebSocket):
@@ -133,18 +135,14 @@ async def websocket_transcribe(websocket: WebSocket):
                 chunk_data = base64.b64decode(data["data"].split(",")[1])
                 file_chunks.append(chunk_data)
                 
-                # Send acknowledgment
                 await websocket.send_json({
                     "type": "chunk_received",
                     "chunk": data["chunk_number"]
                 })
                 
-                # If this is the last chunk, process the complete file
                 if data["chunk_number"] == data["total_chunks"]:
-                    # Combine all chunks
                     complete_file = b''.join(file_chunks)
                     
-                    # Save to temporary file
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
                         temp_path = temp_file.name
                         temp_file.write(complete_file)
@@ -178,8 +176,9 @@ async def websocket_transcribe(websocket: WebSocket):
                             file_chunks.clear()
                             
     except WebSocketDisconnect:
-        pass
+        logger.info("WebSocket disconnected")
     except Exception as e:
+        logger.error(f"Error processing file: {str(e)}")
         await websocket.send_json({
             "type": "error",
             "message": str(e)

@@ -10,6 +10,8 @@ RUN apt-get update && \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get install nvidia-cuda-toolkit nvidia-cudnn libcublas11 -y
+
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
 
