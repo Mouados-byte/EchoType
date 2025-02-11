@@ -1,6 +1,10 @@
+from collections import deque
+import io
 import os
 import tempfile
+import time
 from typing import Optional
+import wave
 from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, Request, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -29,6 +33,8 @@ whisper_service = WhisperTranscriptionService(
     compute_type="float16" if torch.cuda.is_available() else "int8",
 )
 
+audio_buffer = []
+
 # Initialize connection manager
 manager = ConnectionManager()  # Adjust workers based on your CPU
 
@@ -42,6 +48,13 @@ async def upload_form(request: Request):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    audio_buffer = deque(maxlen=10000)
+    is_first_chunk = True
+    wav_params = None
+    sequence = 0
+    transcripted_text = ""
+    last_reset_time = time.time()
+    
     await websocket.accept()
     
     try:
@@ -53,22 +66,55 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Decode the base64 audio chunk
                     chunk_data = base64.b64decode(data["data"].split(",")[1])
                     
-                    # Save to temporary file
+                    # Handle WAV header for first chunk
+                    if is_first_chunk:
+                        with io.BytesIO(chunk_data) as wav_io:
+                            with wave.open(wav_io, 'rb') as wav_file:
+                                wav_params = wav_file.getparams()
+                                # Skip WAV header (44 bytes for standard WAV)
+                                wav_io.seek(44)
+                                raw_audio = wav_io.read()
+                        audio_buffer.append(raw_audio)
+                        is_first_chunk = False
+                    else:
+                        # For subsequent chunks, assume raw audio data
+                        audio_buffer.append(chunk_data)
+                    
+                    # Create a new WAV file with proper header
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
                         temp_path = temp_file.name
                         temp_file.write(chunk_data)
                         temp_file.flush()
+                        with wave.open(temp_file.name, 'wb') as wav_out:
+                            if wav_params:
+                                wav_out.setparams(wav_params)
+                                wav_out.writeframes(b''.join(audio_buffer))
                         
                         try:
-                            # Transcribe individual chunk
+                            # Transcribe
                             segments = whisper_service.model.transcribe(temp_path, language=data["language"])
-
+                            transcripted_text += segments["text"]
+                            
+                            old_length_buffer = len(audio_buffer)
+                            is_end_of_sentence = should_reset_state(segments, last_reset_time=last_reset_time)
+                            if is_end_of_sentence:
+                                last_reset_time = time.time()
+                            
                             await websocket.send_json({
-                                "type": "transcription",
+                                "type": "valid_transcription",
                                 "text": segments["text"],
                                 "language": segments["language"],
-                                "segments": segments["segments"]
+                                "segments": segments["segments"],
+                                "sequence": sequence,
+                                "sequence_step": len(audio_buffer),
+                                "is_final": old_length_buffer != len(audio_buffer) and not audio_buffer
                             })
+                            
+                            # Only clear buffer if we got meaningful transcription
+                            if is_end_of_sentence:
+                                audio_buffer.clear()
+                                is_first_chunk = True  # Reset for next sequence
+                                sequence += 1
 
                         finally:
                             # Clean up temporary file
@@ -90,7 +136,7 @@ async def websocket_endpoint(websocket: WebSocket):
             "message": str(e)
         })
     finally:
-        # Perform any necessary cleanup
+        audio_buffer.clear()
         import gc
         gc.collect()
 
@@ -105,12 +151,11 @@ async def transcribe_audio(file: UploadFile):
             temp_path = temp_file.name
             temp_file.write(content)
             temp_file.flush()
-            
-            # result = whisper_service.transcribe_file(temp_file.name, "fr")
-            segments , info = whisper_service.model.transcribe(temp_path)
+
+            segments = whisper_service.model.transcribe(temp_path)
             
             # Join all segments text
-            full_text = " ".join([segment.text for segment in segments]).strip()
+            full_text = segments["text"]
             
             # Clean up
             os.unlink(temp_path)
@@ -150,22 +195,21 @@ async def websocket_transcribe(websocket: WebSocket):
                         
                         try:
                             # Transcribe and handle generator
-                            segments, info = whisper_service.model.transcribe(temp_path)
+                            result = whisper_service.model.transcribe(temp_path)
+                            full_text = result["text"]
                             
-                            # Process segments from generator
-                            segment_list = []
-                            for i, segment in enumerate(segments, 1):
-                                segment_list.append(segment)
+                            # Split the text into segments at periods and filter out short segments
+                            segments = [s.strip() for s in full_text.split('.') if s.strip() and len(s.strip()) > 2]
+                            
+                            # Send each segment separately
+                            for i, segment_text in enumerate(segments, 1):
                                 await websocket.send_json({
                                     "type": "segment",
                                     "number": i,
-                                    "text": segment.text,
-                                    "start": segment.start,
-                                    "end": segment.end
+                                    "text": segment_text + '.'
                                 })
                             
                             # Send complete transcription
-                            full_text = " ".join(segment.text for segment in segment_list).strip()
                             await websocket.send_json({
                                 "type": "complete",
                                 "text": full_text
@@ -183,6 +227,26 @@ async def websocket_transcribe(websocket: WebSocket):
             "type": "error",
             "message": str(e)
         })
+        
+def should_reset_state(segments, last_reset_time, MIN_SEGMENT_DURATION=1, MAX_SEGMENT_DURATION=5):
+    text = segments["text"].strip()
+    current_time = time.time()
+    last_reset_time = last_reset_time or current_time
+    time_since_last_reset = current_time - last_reset_time
+    
+    # Force reset if it's been too long
+    if time_since_last_reset >= MAX_SEGMENT_DURATION:
+        return True
+        
+    # Don't allow reset if it's too soon
+    if time_since_last_reset < MIN_SEGMENT_DURATION:
+        return False
+        
+    # Normal sentence boundary detection
+    if ("." in text and "..." not in text):  # Your original condition
+        return True
+        
+    return False
 
 if __name__ == "__main__":
     import uvicorn
