@@ -49,6 +49,7 @@ async def upload_form(request: Request):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     audio_buffer = deque(maxlen=10000)
+    end_result_buffer = []
     is_first_chunk = True
     wav_params = None
     sequence = 0
@@ -75,16 +76,16 @@ async def websocket_endpoint(websocket: WebSocket):
                                 wav_io.seek(44)
                                 raw_audio = wav_io.read()
                         audio_buffer.append(raw_audio)
+                        end_result_buffer.append(raw_audio)
                         is_first_chunk = False
                     else:
                         # For subsequent chunks, assume raw audio data
                         audio_buffer.append(chunk_data)
+                        end_result_buffer.append(chunk_data)
                     
                     # Create a new WAV file with proper header
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
                         temp_path = temp_file.name
-                        temp_file.write(chunk_data)
-                        temp_file.flush()
                         with wave.open(temp_file.name, 'wb') as wav_out:
                             if wav_params:
                                 wav_out.setparams(wav_params)
@@ -94,6 +95,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             # Transcribe
                             segments = whisper_service.model.transcribe(temp_path, language=data["language"])
                             transcripted_text += segments["text"]
+                            print(segments["text"])
                             
                             old_length_buffer = len(audio_buffer)
                             is_end_of_sentence = should_reset_state(segments, last_reset_time=last_reset_time)
@@ -126,6 +128,29 @@ async def websocket_endpoint(websocket: WebSocket):
                         "type": "error",
                         "message": str(e)
                     })
+            elif (data["type"] == "finished"):
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
+                    temp_path = temp_file.name
+                    print(len(end_result_buffer))
+                    with wave.open(temp_file.name, 'wb') as wav_out:
+                        if wav_params:
+                            wav_out.setparams(wav_params)
+                            wav_out.writeframes(b''.join(end_result_buffer))
+                            
+                    try:
+                        # Transcribe
+                        print(temp_path)
+                        segments = whisper_service.model.transcribe(temp_path, language=data["language"])
+                        transcripted_text = segments["text"]
+                        print("Transcripted text: ", transcripted_text)
+                        
+                        await websocket.send_json({
+                            "type": "completed",
+                            "text": transcripted_text
+                        })
+                    except Exception as e:
+                        logger.error(f"Error processing audio chunk: {str(e)}")
+                
                     
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
@@ -137,8 +162,6 @@ async def websocket_endpoint(websocket: WebSocket):
         })
     finally:
         audio_buffer.clear()
-        import gc
-        gc.collect()
 
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile):
